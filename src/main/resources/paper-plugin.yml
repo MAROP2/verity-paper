@@ -1,0 +1,6 @@
+name: Verity
+version: 1.0
+main: com.marop2.verity.VerityPlugin
+api-version: '1.21'
+author: marop2
+description: Verity horror sphere — she is always watching.

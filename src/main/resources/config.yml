@@ -1,0 +1,51 @@
+# Verity configuration
+
+phases:
+  calm:
+    distance: 5.0
+    duration: 200        # ticks (10s) before escalating to NOTICING
+    phrases:
+      - "Привет, %player%! Ты меня видишь?"
+      - "Мне тут тихо... посиди со мной."
+      - "Ты пришёл. Я знала."
+      - "Какой красивый мир, %player%. Правда?"
+  noticing:
+    distance: 3.0
+    duration: 300        # ticks (15s) before escalating to STALKING
+    phrases:
+      - "Ты... всё ещё здесь, %player%?"
+      - "Почему ты смотришь на меня так долго?"
+      - "Я чувствую твоё сердце."
+      - "Не уходи. Пожалуйста, не уходи."
+  stalking:
+    distance: 1.5
+    duration: 400        # ticks (20s) before escalating to JUMPSCARE
+    phrases:
+      - "Зачем ты пришёл в мой мир, %player%?"
+      - "Ты прятался от меня. Я это знаю."
+      - "Кто тебя послал? ОТВЕЧАЙ."
+      - "Ты не тот, кем себя называешь, %player%."
+    darkness-duration: 100  # ticks (5s) of blindness per proc
+    darkness-chance: 0.005  # per-tick chance to apply darkness
+  jumpscare:
+    phrases:
+      - "ТЫ УВИДЕЛ МЕНЯ."
+
+visual:
+  scale: 0.5
+  bob-amplitude: 0.15
+  bob-speed: 0.12          # rad per tick
+  hover-above: 2.5         # blocks above target's head position
+  letter-reveal-ticks: 3   # ticks per character of speech reveal
+  bubble-height: 1.1       # above display
+
+sounds:
+  witch-ambient-volume: 0.4
+  cave-ambient-volume: 0.35
+
+auto-spawn:
+  enabled: true
+  chance: 0.3
+  min-delay-seconds: 30
+  max-delay-seconds: 120
+  max-distance: 10
