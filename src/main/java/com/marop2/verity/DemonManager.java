@@ -48,6 +48,7 @@ public final class DemonManager {
     private final Map<UUID, Player> grabVictims = new HashMap<>();
     private final Map<UUID, Integer> grabTicks = new HashMap<>();
     private final Map<UUID, Boolean> crawlingMap = new HashMap<>();
+    private final Map<UUID, DemonRig> rigs = new HashMap<>();
 
     public static final class DemonState {
         final UUID id;
@@ -81,17 +82,34 @@ public final class DemonManager {
         z.getEquipment().clear();
         z.setCanPickupItems(false);
         z.setAdult();
-        // Жёлтая голова-смайл
-        Location head = loc.clone().add(0, 2.6, 0);
-        var face = (org.bukkit.entity.TextDisplay) world.spawnEntity(head, EntityType.TEXT_DISPLAY);
-        face.text(Component.text("◕‿◕", net.kyori.adventure.text.format.TextColor.color(0xFFFF00)));
-        face.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
-        face.setSeeThrough(true);
-        face.setPersistent(false);
-        face.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
+        boolean rig = plugin.getConfig().getString("demon.appearance", "RIG").equalsIgnoreCase("RIG");
+        if (rig) {
+            // тело невидимое, поверх — фигура из BlockDisplay
+            z.setInvisible(true);
+            rigs.put(z.getUniqueId(), new DemonRig(plugin, z));
+        } else {
+            // запасной вариант VANILLA: видимый моб с масштабом
+            z.customName(null);
+            z.setCustomNameVisible(false);
+        }
+        // Жёлтая голова-смайл только в VANILLA-режиме
+        if (!rig) {
+            Location head = loc.clone().add(0, 2.6, 0);
+            var face = (org.bukkit.entity.TextDisplay) world.spawnEntity(head, EntityType.TEXT_DISPLAY);
+            face.text(Component.text("◕‿◕", net.kyori.adventure.text.format.TextColor.color(0xFFFF00)));
+            face.setBillboard(org.bukkit.entity.Display.Billboard.CENTER);
+            face.setSeeThrough(true);
+            face.setPersistent(false);
+            face.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
+        }
         demons.put(z.getUniqueId(), stateFor(z, target.getUniqueId(), huntPhase));
         z.setTarget(target);
         return z;
+    }
+
+    private void removeRig(UUID demonId) {
+        DemonRig rig = rigs.remove(demonId);
+        if (rig != null) rig.remove();
     }
 
     private DemonState stateFor(Zombie z, UUID targetId, int huntPhase) {
@@ -114,6 +132,7 @@ public final class DemonManager {
 
     public void despawnDemon(LivingEntity e) {
         if (e != null && e.isValid()) e.remove();
+        if (e != null) removeRig(e.getUniqueId());
         demons.remove(e == null ? null : e.getUniqueId());
     }
 
@@ -122,6 +141,8 @@ public final class DemonManager {
             Entity e = Bukkit.getEntity(id);
             if (e != null && e.isValid()) e.remove();
         }
+        for (DemonRig rig : new ArrayList<>(rigs.values())) rig.remove();
+        rigs.clear();
         demons.clear();
     }
 
@@ -142,6 +163,7 @@ public final class DemonManager {
         }
         for (Zombie z : toRemove) {
             try { z.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, z.getLocation().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.1); } catch (Exception ignored) {}
+            removeRig(z.getUniqueId());
             z.remove();
             demons.remove(z.getUniqueId());
         }
@@ -163,7 +185,11 @@ public final class DemonManager {
         if (target == null) return;
         for (Zombie z : new ArrayList<>(allDemons())) {
             DemonState s = demons.get(z.getUniqueId());
-            if (s != null && s.targetId.equals(target.getUniqueId())) { z.remove(); demons.remove(z.getUniqueId()); }
+            if (s != null && s.targetId.equals(target.getUniqueId())) {
+                removeRig(z.getUniqueId());
+                z.remove();
+                demons.remove(z.getUniqueId());
+            }
         }
     }
 
@@ -194,8 +220,12 @@ public final class DemonManager {
         // Чистка мёртвых
         demons.entrySet().removeIf(en -> {
             Entity e = Bukkit.getEntity(en.getKey());
-            return e == null || !e.isValid() || e.isDead();
+            boolean dead = e == null || !e.isValid() || e.isDead();
+            if (dead) removeRig(en.getKey());
+            return dead;
         });
+        // Обновление фигур RIG каждый тик
+        for (DemonRig rig : rigs.values()) rig.updateTick();
         for (DemonState s : new ArrayList<>(demons.values())) {
             Entity e = Bukkit.getEntity(s.id);
             if (!(e instanceof Zombie z) || !z.isValid()) continue;
@@ -621,8 +651,7 @@ public final class DemonManager {
     /** Демон убит → хорошая концовка если есть успокоенный шар. */
     public void onDemonDeath(org.bukkit.event.entity.EntityDeathEvent ev) {
         if (!(ev.getEntity() instanceof Zombie z) || !isDemon(z)) return;
-        // Игрок его убил → шар говорит "The darkness... it's gone"
-        // Ищем последнего атакующего — упрощённо: всем игрокам рядом
+        removeRig(z.getUniqueId());
         demons.remove(z.getUniqueId());
         for (Player p : z.getWorld().getPlayers()) {
             if (p.getLocation().distance(z.getLocation()) < 64 && manager.hasVerity(p)) {

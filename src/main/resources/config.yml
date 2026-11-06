@@ -127,6 +127,9 @@ flashlight:
   light-level: 15
 
 demon:
+  appearance: RIG                # RIG — фигура из BlockDisplay | VANILLA — видимый моб
+  rig:
+    y-offset: 0.0
   health: 400.0
   speed: 0.45
   follow-range: 512.0
