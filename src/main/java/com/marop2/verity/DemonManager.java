@@ -532,8 +532,12 @@ public final class DemonManager {
         demonLoc.setY(worldSurfaceY(demonLoc));
         Zombie z = spawnDemon(player, demonLoc, huntPhase);
         if (z == null) return;
-        // ТЗ §1/§7: только владельцу — персональная полночь, мир не трогаем
+        // ТЗ §1/§6: только владельцу — персональная полночь, мир/гейтрул не трогаем
         player.setPlayerTime(18000, false);
+        if (!player.getScoreboardTags().contains("verity_transformed")) {
+            player.getScoreboardTags().add("verity_transformed");
+            player.getScoreboardTags().add("verity_transformDone");
+        }
         player.getWorld().playSound(demonLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
         player.addScoreboardTag(TAG_WINDOW_DONE);
         manager.speakTo(player, "За окном кто-то стоит. Не смотри долго.");
