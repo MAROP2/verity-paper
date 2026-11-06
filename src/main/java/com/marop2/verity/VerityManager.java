@@ -22,6 +22,9 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.util.Vector;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Set;
 
 import java.util.Iterator;
 import java.util.Map;
@@ -43,6 +46,10 @@ public final class VerityManager {
     private final DialogueManager dialogue;
 
     private final Map<UUID, VerityInstance> instances = new ConcurrentHashMap<>();
+    private final Map<UUID, Integer> karma = new ConcurrentHashMap<>();
+    private final java.util.Map<UUID, Long> sorryCounts = new ConcurrentHashMap<>();
+    private final java.util.Map<UUID, Long> idleSayAt = new ConcurrentHashMap<>();
+    private final java.util.Map<UUID, Long> aloneLastWarn = new ConcurrentHashMap<>();
 
     private final double scale;
     private final double bobAmplitude;
@@ -160,6 +167,7 @@ public final class VerityManager {
         bubble.setPersistent(false);
         bubble.setTeleportDuration(2);
 
+        karma.put(target.getUniqueId(), plugin.getConfig().getInt("karma.start", 10));
         VerityInstance inst = new VerityInstance(target.getUniqueId(), sphere, face, bubble);
         inst.phase = VerityPhase.CALM;
         inst.phaseTicksRemaining = settings(VerityPhase.CALM).duration();
@@ -180,6 +188,58 @@ public final class VerityManager {
     public boolean hasVerity(Player target) {
         return instances.containsKey(target.getUniqueId());
     }
+
+    public int karmaOf(Player target) {
+        return karma.getOrDefault(target.getUniqueId(), plugin.getConfig().getInt("karma.default", 10));
+    }
+
+    public void setKarma(Player target, int v) {
+        karma.put(target.getUniqueId(), Math.max(plugin.getConfig().getInt("karma.min", 0), Math.min(plugin.getConfig().getInt("karma.max", 20), v)));
+    }
+
+    public void addKarma(Player target, int delta) {
+        setKarma(target, karmaOf(target) + delta);
+    }
+
+    public VerityPhase phaseOf(Player target) {
+        VerityInstance inst = instances.get(target.getUniqueId());
+        return inst == null ? null : inst.phase();
+    }
+
+    public void speakTo(Player target, String phase) {
+        VerityInstance inst = instances.get(target.getUniqueId());
+        if (inst != null) speak(inst, phase);
+        target.sendMessage(Component.text("Verity: " + phase, NamedTextColor.YELLOW));
+    }
+
+    public void speakPhase(Player target, VerityPhase phase) {
+        speakTo(target, dialogue.randomPhrase(phase, target.getName()));
+    }
+
+    /** UIManager: пройти условия ^ 10 30б. */
+    public boolean isLookingAtBall(Player p, VerityInstance inst) {
+        org.bukkit.Location from = p.getEyeLocation();
+        org.bukkit.Location ball = inst.sphere().getLocation();
+        Vector view = from.getDirection().normalize();
+        Vector to = new Vector(ball.getX() - from.getX(), ball.getY() - from.getY(), ball.getZ() - from.getZ()).normalize();
+        return view.dot(to) > 0.98 && from.distance(ball) <= 10;
+    }
+
+    public void onSorry(Player p) {
+        long c = sorryCounts.getOrDefault(p.getUniqueId(), 0L) + 1;
+        sorryCounts.put(p.getUniqueId(), c);
+        if (c >= 3) sorryCounts.put(p.getUniqueId(), 0L);
+    }
+
+    public boolean sorryOk(Player p) {
+        return sorryCounts.getOrDefault(p.getUniqueId(), 0L) >= 3;
+    }
+
+    public void face(Player p, FaceKind kind) {
+        VerityInstance inst = instances.get(p.getUniqueId());
+        if (inst != null) inst.face().text(Component.text(kind.text(), net.kyori.adventure.text.format.TextColor.color(0x000000)).decoration(TextDecoration.BOLD, true));
+    }
+
 
     /** Force-despawn any Verity whose entities live in a chunk being unloaded. */
     public void handleChunkUnload(Chunk chunk) {
@@ -251,6 +311,35 @@ public final class VerityManager {
                 setPhase(target, next);
                 if (inst.phase == VerityPhase.JUMPSCARE) return;
             }
+        }
+
+        Location targetLoc0 = target.getLocation();
+        Location sphereLoc0 = inst.sphere().getLocation();
+        // --- Karma: лицо по карме (серьёзные 13+/20) ---
+        int k = karmaOf(target);
+        FaceKind fk = FaceKind.forKarma(k);
+        if (inst.phase() != VerityPhase.NOFACE && inst.phase() != VerityPhase.JUMPSCARE) {
+            try { inst.face().text(Component.text(fk.text(), net.kyori.adventure.text.format.TextColor.color(0x000000)).decoration(TextDecoration.BOLD, true)); } catch (Exception ignored) {}
+        }
+
+        // --- Одиночество: >32 блоков — "I'm alone..." и -1 карма/сек ---
+        double distToPlayer = sphereLoc0.distance(targetLoc0);
+        if (distToPlayer > 32) {
+            long nowMs = System.currentTimeMillis();
+            long lastWarn = aloneLastWarn.getOrDefault(target.getUniqueId(), 0L);
+            if (nowMs - lastWarn > 1000) {
+                aloneLastWarn.put(target.getUniqueId(), nowMs);
+                addKarma(target, plugin.getConfig().getInt("karma.alone-delta", -1));
+                if (nowMs - lastWarn > 5000) speak(inst, dialogue.reply("alone", target.getName()));
+            }
+        }
+
+        // --- Sam по себе: заговаривает каждые 2-4 мин ---
+        long now = System.currentTimeMillis();
+        long idleAt = idleSayAt.getOrDefault(target.getUniqueId(), now);
+        if (now - idleAt > 120000 && now - idleAt < 240000) {
+            idleSayAt.put(target.getUniqueId(), now);
+            speak(inst, dialogue.randomReply("idle", target.getName()));
         }
 
         // --- Movement: hover toward a point `phaseDistance` from the player,

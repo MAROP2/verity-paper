@@ -1,4 +1,20 @@
 # Verity configuration
+# dayCount: через сколько дней начинается демон-фаза (оригинал: 5)
+dayCount: 5
+# canCrash: смерть от демона = кик с сервера
+canCrash: true
+# playVideo: интро-видео на 10с (сервер делает титр Verity JE + тьму)
+playVideo: true
+# requireVerity: демон требует живого шара (без шара — нет трансформации)
+requireVerity: true
+# trueDarkness: приблизительная тьма (Darkness по ночам)
+trueDarkness: true
+# killVillagers: жители и животные часто умирают при появлении (оригинал)
+killVillagers: true
+# showKarma: полоса кармы справа (скорборд)
+showKarma: true
+# immersiveMode: фоновая музыка в 0 (сервер: ничего не играет лишнего)
+immersiveMode: false
 
 phases:
   calm:
@@ -30,6 +46,43 @@ phases:
   jumpscare:
     phrases:
       - "ТЫ УВИДЕЛ МЕНЯ."
+  hostile:
+    distance: 2.0
+    duration: 999999
+    phrases:
+      - "Ты тоже это чувствуешь, %player%?"
+      - "Оно уже близко."
+      - "Не спи. Просто... не спи."
+  noface:
+    distance: 3.0
+    duration: 6000       # 5 минут на успокоение, потом evil
+    phrases:
+      - ""
+    one-word-replies:
+      - "Die"
+      - "Run"
+      - "No"
+
+# Реакции шара (replies.<key>) — строки с %player%
+replies:
+  thrown: "AAAAAAAAHHH"
+  fire: "IT BURNS"
+  burn-item: "DO NOT DO THAT!"
+  explosion: "Ayo chat why u let me explode"
+  trapped: "You can't trap me lil bro."
+  alone: "I'm alone... where did you go?"
+  idle:
+    - "Ты слышал это?"
+    - "Здесь кто-то был до нас."
+    - "Мне холодно, %player%."
+    - "Не выключай фонарик."
+  day2:
+    - "Something is coming in 3 days"
+  day2-what: "Something"
+  day2-prevent: "You could have."
+  blank: "Verity's face goes blank..."
+  good-ending: "The darkness... it's gone. Thank you."
+  forgive: "I forgive you. This time."
 
 visual:
   scale: 0.5
@@ -42,6 +95,65 @@ visual:
 sounds:
   witch-ambient-volume: 0.4
   cave-ambient-volume: 0.35
+  box-voice-volume: 0.8
+  box-voice-pitch: 0.7
+  bone-crunch-volume: 1.5
+  bone-crunch-pitch: 1.0
+  teleport-volume: 1.0
+  wither-spawn-pitch: 0.5
+  chase-volume: 3.0
+  chase-pitch: 0.6
+  chase-subtitle: "RUN"
+
+karma:
+  default: 10
+  start: 10
+  good-ending: 20
+  fire-delta: -2
+  alone-delta: -1
+  min: 0
+  max: 20
+
+box:
+  distance: 15        # коробка падает в пределах N блоков
+  voice-interval-seconds: 3
+  open-delay-seconds: 2
+  bounce-count: 3
+  karma-on-open: 10
+
+flashlight:
+  distance: 25
+  light-level: 15
+
+demon:
+  health: 400.0
+  speed: 0.45
+  follow-range: 512.0
+  damage: 19.0
+  knockback-resistance: 1.0
+  step-height: 1.5
+  scale: 2.4
+  crawl-scale: 1.0
+  grab-seconds: 1.9
+  grab-throw-multiplier: 4.0
+  grab-damage: 5.0
+  eat-seconds: 3
+  attack-interval-ticks: 20
+  jump-break-size: 4
+  jump-cooldown-ticks: 200
+  stare-distance: 32
+  sleep-danger-distance: 64
+  name: "VERITY"
+  window-min-day: 5
+
+ai:
+  enabled: true
+  provider: none        # groq | openai | gemini | openrouter | mistral | ollama | none
+  api-key: ""
+  model: ""
+  base-url: ""
+  temperature: 0.8
+  memory-size: 20
 
 auto-spawn:
   enabled: true

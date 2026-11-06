@@ -17,9 +17,17 @@ import java.util.List;
 public final class VerityCommand implements CommandExecutor, TabCompleter {
 
     private final VerityManager manager;
+    private final DemonManager demonManager;
+    private final BoxManager boxManager;
+    private final AiChatManager aiChatManager;
+    private final IntroManager introManager;
 
-    public VerityCommand(VerityManager manager) {
+    public VerityCommand(VerityManager manager, DemonManager demonManager, BoxManager boxManager, AiChatManager aiChatManager, IntroManager introManager) {
         this.manager = manager;
+        this.demonManager = demonManager;
+        this.boxManager = boxManager;
+        this.aiChatManager = aiChatManager;
+        this.introManager = introManager;
     }
 
     @Override
@@ -61,7 +69,25 @@ public final class VerityCommand implements CommandExecutor, TabCompleter {
                 manager.setPhase(target, phase);
                 sender.sendMessage(Component.text("Фаза Верити для " + target.getName() + ": " + phase.name(), NamedTextColor.YELLOW));
             }
-            default -> sender.sendMessage(Component.text("Использование: /verity <spawn|despawn|phase> [игрок] [1-4]", NamedTextColor.YELLOW));
+            case "demon" -> {
+                Player target = resolveTarget(sender, args, 1);
+                if (target == null) return true;
+                demonManager.spawnDemon(target, target.getLocation().add(0, 0, 20), 1);
+                sender.sendMessage(Component.text("Демон вызван рядом с " + target.getName() + ".", NamedTextColor.DARK_RED));
+            }
+            case "box" -> {
+                Player target = resolveTarget(sender, args, 1);
+                if (target == null) return true;
+                boxManager.spawnBox(target);
+                sender.sendMessage(Component.text("Коробка сброшена рядом с " + target.getName() + ".", NamedTextColor.YELLOW));
+            }
+            case "intro" -> {
+                Player target = resolveTarget(sender, args, 1);
+                if (target == null) return true;
+                introManager.play(target);
+                sender.sendMessage(Component.text("Интро запущено для " + target.getName() + ".", NamedTextColor.YELLOW));
+            }
+            default -> sender.sendMessage(Component.text("Использование: /verity <spawn|despawn|phase|demon|box|intro> [игрок] [1-4]", NamedTextColor.YELLOW));
         }
         return true;
     }
@@ -84,7 +110,7 @@ public final class VerityCommand implements CommandExecutor, TabCompleter {
     public List<String> onTabComplete(CommandSender sender, Command command, String alias, String[] args) {
         List<String> out = new ArrayList<>();
         if (args.length == 1) {
-            out.add("spawn"); out.add("despawn"); out.add("phase");
+            out.add("spawn"); out.add("despawn"); out.add("phase"); out.add("demon"); out.add("box"); out.add("intro"); out.add("recover"); out.add("clear_history"); out.add("changekarma");
         } else if (args.length == 2 && !args[0].equalsIgnoreCase("phase")) {
             for (Player p : org.bukkit.Bukkit.getOnlinePlayers()) out.add(p.getName());
         } else if (args.length == 2 && args[0].equalsIgnoreCase("phase")) {
