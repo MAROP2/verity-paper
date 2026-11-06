@@ -11,7 +11,7 @@ requireVerity: true
 trueDarkness: true
 # killVillagers: жители и животные часто умирают при появлении (оригинал)
 killVillagers: true
-# showKarma: полоса кармы справа (скорборд)
+# showKarma: BossBar кармы только владельцу (ТЗ §3)
 showKarma: true
 # immersiveMode: фоновая музыка в 0 (сервер: ничего не играет лишнего)
 immersiveMode: false
