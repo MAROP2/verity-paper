@@ -22,10 +22,15 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
         this.manager = new VerityManager(this, dialogue);
         getServer().getPluginManager().registerEvents(this, this);
         VerityCommand cmd = new VerityCommand(manager);
-        if (getCommand("verity") != null) {
-            getCommand("verity").setExecutor(cmd);
-            getCommand("verity").setTabCompleter(cmd);
-        }
+        org.bukkit.command.Command paperCmd = new org.bukkit.command.Command("verity") {
+            @Override
+            public boolean execute(org.bukkit.command.CommandSender sender, String label, String[] args) {
+                return cmd.onCommand(sender, this, label, args);
+            }
+        };
+        paperCmd.setDescription("Verity horror sphere control");
+        paperCmd.setUsage("/verity <spawn|despawn|phase> [player] [1-4]");
+        getServer().getCommandMap().register("verity", paperCmd);
         getLogger().info("Verity is watching. Always.");
     }
 

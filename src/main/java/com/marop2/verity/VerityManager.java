@@ -128,9 +128,8 @@ public final class VerityManager {
         ItemDisplay sphere = (ItemDisplay) world.spawnEntity(loc, EntityType.ITEM_DISPLAY);
         sphere.setItemStack(new ItemStack(Material.YELLOW_WOOL));
         sphere.setBillboard(Display.Billboard.FIXED);
-        Display.Transformation t = sphere.getTransformation();
-        t.getScale().set(scale);
-        sphere.setTransformation(t);
+        org.joml.Vector3f s = sphere.getTransformation().getScale();
+        s.set(scale, scale, scale);
         sphere.setTeleportDuration(2); // smooth interpolation of our 2-tick updates
         sphere.setPersistent(false);
         sphere.setViewRange(1.0f);
@@ -145,7 +144,7 @@ public final class VerityManager {
         face.setSeeThrough(false);
         face.setShadowed(false);
         face.setDefaultBackground(false);
-        face.setBackgroundColor(org.bukkit.Color.fromRGB(0, 0, 0, 0));
+        face.setBackgroundColor(org.bukkit.Color.fromARGB(0, 0, 0, 0));
         face.setPersistent(false);
         face.setTeleportDuration(2);
 
@@ -157,6 +156,7 @@ public final class VerityManager {
         bubble.setSeeThrough(false);
         bubble.setShadowed(false);
         bubble.setLineWidth(200);
+        bubble.setBackgroundColor(org.bukkit.Color.fromARGB(120, 0, 0, 0));
         bubble.setPersistent(false);
         bubble.setTeleportDuration(2);
 
