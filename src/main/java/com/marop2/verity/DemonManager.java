@@ -532,8 +532,8 @@ public final class DemonManager {
         demonLoc.setY(worldSurfaceY(demonLoc));
         Zombie z = spawnDemon(player, demonLoc, huntPhase);
         if (z == null) return;
-        // setDayTime(18000) абсолютно — счётчик дней сбрасывается в 0 (особенность оригинала)
-        world.setTime(18000);
+        // ТЗ §1/§7: только владельцу — персональная полночь, мир не трогаем
+        player.setPlayerTime(18000, false);
         player.getWorld().playSound(demonLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
         player.addScoreboardTag(TAG_WINDOW_DONE);
         manager.speakTo(player, "За окном кто-то стоит. Не смотри долго.");

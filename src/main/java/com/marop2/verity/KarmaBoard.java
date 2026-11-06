@@ -1,21 +1,23 @@
 package com.marop2.verity;
 
+import net.kyori.adventure.bossbar.BossBar;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
-import org.bukkit.scoreboard.Criteria;
-import org.bukkit.scoreboard.DisplaySlot;
-import org.bukkit.scoreboard.Objective;
-import org.bukkit.scoreboard.Scoreboard;
+
+import java.util.Map;
+import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Вертикальная полоса кармы: скорборд "VERITY" с рожицей и числом 0-20.
- * Paper не умеет полосы по бокам — скорборд справа = оригиналу.
+ * Карма 0-20 — BossBar только владельцу (ТЗ §3: цвет 0-6 красный, 7-13 жёлтый, 14-20 зелёный).
+ * Скорборд убран: конфликт с другими плагинами и не соответствует ТЗ.
  */
 public final class KarmaBoard {
     private final VerityPlugin plugin;
     private final VerityManager manager;
+    private final Map<UUID, BossBar> bars = new ConcurrentHashMap<>();
 
     public KarmaBoard(VerityPlugin plugin, VerityManager manager) {
         this.plugin = plugin;
@@ -24,21 +26,31 @@ public final class KarmaBoard {
     }
 
     private void render() {
-        if (!plugin.getConfig().getBoolean("showKarma", true)) return;
+        if (!plugin.getConfig().getBoolean("showKarma", true) && !plugin.getConfig().getBoolean("karma.show-bossbar", true)) {
+            bars.values().forEach(b -> {}); // noop
+            return;
+        }
         for (Player p : Bukkit.getOnlinePlayers()) {
-            if (!manager.hasVerity(p)) continue;
-            int karma = manager.karmaOf(p);
-            String face = karma <= 5 ? "\u25D4_\u25D5" : karma <= 13 ? "\u25D5\u203F\u25D5" : "\u25D5\u203F\u25D5";
-            Scoreboard sb = p.getScoreboard();
-            Objective obj = sb.getObjective("verity_karma");
-            if (obj == null) {
-                obj = sb.registerNewObjective("verity_karma", Criteria.DUMMY, Component.text("VERITY", NamedTextColor.YELLOW));
-                obj.setDisplaySlot(DisplaySlot.SIDEBAR);
-                obj.numberFormat(io.papermc.paper.scoreboard.numbers.NumberFormat.noStyle());
-            } else {
-                obj.numberFormat(io.papermc.paper.scoreboard.numbers.NumberFormat.noStyle());
+            if (!manager.hasVerity(p)) {
+                BossBar b = bars.remove(p.getUniqueId());
+                if (b != null) p.hideBossBar(b);
+                continue;
             }
-            obj.getScore(face).setScore(karma);
+            int karma = manager.karmaOf(p);
+            NamedTextColor col = karma <= 6 ? NamedTextColor.DARK_RED : karma <= 13 ? NamedTextColor.YELLOW : NamedTextColor.GREEN;
+            BossBar bar = bars.computeIfAbsent(p.getUniqueId(), id -> {
+                BossBar nb = BossBar.bossBar(Component.text("", col), 0.5f, BossBar.Color.YELLOW, BossBar.Overlay.PROGRESS);
+                p.showBossBar(nb);
+                return nb;
+            });
+            bar.name(Component.text(manager.name(), col));
+            bar.color(karma <= 6 ? BossBar.Color.RED : karma <= 13 ? BossBar.Color.YELLOW : BossBar.Color.GREEN);
+            bar.progress(karma / 20f);
+        }
+        // убрать бары ушедших
+        for (UUID id : bars.keySet()) {
+            Player p = Bukkit.getPlayer(id);
+            if (p == null) bars.remove(id);
         }
     }
 }

@@ -3,7 +3,6 @@ package com.marop2.verity;
 import io.papermc.paper.event.player.AsyncChatEvent;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
-import org.bukkit.GameRule;
 import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
@@ -129,6 +128,8 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
+        event.getPlayer().resetPlayerTime();
+        event.getPlayer().resetPlayerWeather();
         manager.despawn(event.getPlayer());
     }
 
@@ -312,25 +313,14 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
             long day = (fullTime / 24000L) + 1;
             int dayCount = getConfig().getInt("dayCount", 5);
 
-            // День 2: doMobSpawning выкл + убить всё живое
+            // День 2 (ТЗ §4/§7): разовая зачистка только в радиусе 64 вокруг владельца,
+            // глобальный гейтрул DO_MOB_SPAWNING НЕ трогаем (соседние EliteMobs и др.)
             if (day == 2 && !p.getScoreboardTags().contains("verity_day2_done")) {
-                w.setGameRule(GameRule.DO_MOB_SPAWNING, false);
-                for (Entity e : w.getEntities()) {
-                    if (e instanceof Player) continue;
-                    if (e instanceof Monster) continue;
-                    e.remove();
-                    e.getWorld().playSound(e.getLocation(), Sound.BLOCK_BONE_BLOCK_STEP, 0.5f, 0.5f);
-                }
+                purgeRadius(p, 64);
                 p.getScoreboardTags().add("verity_day2_done");
                 if (manager.hasVerity(p)) {
                     manager.speakTo(p, getConfig().getString("replies.day2.alt", "Something is coming in 3 days"));
                 }
-            }
-            // Возврат doMobSpawning на следующем дне
-            if (day > 2 && w.getGameRuleValue(GameRule.DO_MOB_SPAWNING).equals(false)
-                    && !p.getScoreboardTags().contains("verity_mobspawn_restored")) {
-                w.setGameRule(GameRule.DO_MOB_SPAWNING, true);
-                p.getScoreboardTags().add("verity_mobspawn_restored");
             }
 
             // День 4: шар враждебный, лица evil
@@ -382,12 +372,37 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
         }
     }
 
+
+    /** Зачистка мобов только вокруг владельца (ТЗ §7). Исключения: питомцы, именованные, на поводке, с опытом торговли, рядом с чужими игроками. */
+    private void purgeRadius(Player owner, double radius) {
+        for (Entity e : owner.getWorld().getNearbyEntities(owner.getLocation(), radius, radius, radius)) {
+            if (e instanceof Player) continue;
+            if (demonManager.isDemon(e)) continue;
+            if (e instanceof Monster) continue; // режим PASSIVE по умолчанию: животных/жителей
+            if (e.getCustomName() != null) continue;
+            if (e instanceof org.bukkit.entity.Tameable ta && ta.isTamed()) continue;
+            if (e.getVehicle() != null || !e.getPassengers().isEmpty()) continue;
+            if (e instanceof org.bukkit.entity.Villager v && v.getVillagerLevel() > 1) continue;
+
+            // не трогать мобов рядом с чужими игроками (чужие фермы)
+            boolean nearOther = false;
+            for (Player other : getServer().getOnlinePlayers()) {
+                if (other.equals(owner)) continue;
+                if (other.getWorld().equals(e.getWorld()) && other.getLocation().distance(e.getLocation()) < 32) { nearOther = true; break; }
+            }
+            if (nearOther) continue;
+            org.bukkit.Location loc = e.getLocation().clone();
+            e.remove();
+            e.getWorld().spawnParticle(Particle.SMOKE, loc.add(0, 0.5, 0), 10, 0.3, 0.5, 0.3, 0.02);
+        }
+    }
+
     private void doTransform(Player p) {
         World w = p.getWorld();
         manager.speakTo(p, "Verity's face goes blank...");
         w.playSound(p.getLocation(), Sound.ENTITY_WITHER_SPAWN, 1f, (float) getConfig().getDouble("sounds.wither-spawn-pitch", 0.5));
         w.spawnParticle(Particle.SMOKE, p.getLocation().add(0, 1, 0), 30, 1, 1, 1, 0.1);
-        w.setTime(18000);
+        p.setPlayerTime(18000, false);
         if (getConfig().getBoolean("requireVerity", true) && !manager.hasVerity(p)) return;
         // Демон в 16-31 блоках по X/Z
         int dx = ThreadLocalRandom.current().nextInt(16, 32) * (ThreadLocalRandom.current().nextBoolean() ? 1 : -1);

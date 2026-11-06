@@ -189,6 +189,8 @@ public final class VerityManager {
         return instances.containsKey(target.getUniqueId());
     }
 
+    public String name() { return plugin.getConfig().getString("companion-name", "Verity"); }
+
     public int karmaOf(Player target) {
         return karma.getOrDefault(target.getUniqueId(), plugin.getConfig().getInt("karma.default", 10));
     }
