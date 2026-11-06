@@ -1,0 +1,46 @@
+# Verity messages (en)
+speech: "<gray><name></gray> <white><text></white>"
+lines:
+  greeting: ["Hi! I'm <name>. I'll stay with you. Always."]
+  face-blank: "<dark_gray><name>'s face is gone... Look at it to calm it down."
+  calmed: "<gray>...okay. I'm here."
+  darkness-gone: "The darkness... it's gone. Thank you."
+  cant-sleep: "<red>You cannot rest now. <name> is near."
+  death-message: "<dark_red><player> was taken by <name>"
+  kicked: "<dark_red><bold>Farewell, <player>"
+  run-title: "<dark_red><bold>RUN"
+  scream: "AAAAAAAAHHH"
+  ouch: ["Ouch"]
+  burns: ["IT BURNS", "GET ME OUT OF HERE"]
+  do-not: "DO NOT DO THAT!"
+  exploded: "Ayo chat why u let me explode"
+  chest: "You can't trap me lil bro."
+  lonely: "I'm alone... where did you go?"
+  cant-pick-talking: "<gray>Wait, <name> is talking."
+  cant-pick-monstrous: "<dark_gray>It won't let you."
+faces:
+  happy: "◕‿◕"
+  neutral: "•_•"
+  hurt: ">﹏<"
+  sleepy: "-‿- z"
+  serious: "ಠ_ಠ"
+  crazy: "◉д◉"
+  evil: "◣_◢"
+  smiling-evil: "◣‿◢"
+  blank: " "
+script:
+  friendly:
+    idle: ["Wanna find some diamonds?", "This place is nice, isn't it?"]
+    reply: ["Hehe, okay!", "Yes, I hear you."]
+  unsettling:
+    idle: ["Did you hear that?", "Someone was here before us."]
+    reply: ["Don't stare for too long."]
+  glitch:
+    idle: ["Something is coming in <days> days.", "I'm cold."]
+    reply: ["Something.", "You could have."]
+  hostile:
+    idle: ["It is close now.", "Don't sleep. Just... don't sleep."]
+    reply: ["Do you feel it too?"]
+  monstrous:
+    idle: ["..."]
+    reply: ["Die", "Run", "No"]

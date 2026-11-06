@@ -7,11 +7,11 @@ import org.bukkit.Material;
 import org.bukkit.Particle;
 import org.bukkit.Sound;
 import org.bukkit.World;
-import org.bukkit.block.Block;
-import org.bukkit.command.Command;
-import org.bukkit.command.CommandExecutor;
-import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Entity;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.command.Command;
+import org.bukkit.command.CommandSender;
+import org.bukkit.command.CommandExecutor;
 import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
@@ -43,10 +43,14 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
     private AiChatManager aiChatManager;
     private IntroManager introManager;
     private KarmaBoard karmaBoard;
+    private FlashlightManager flashlightManager;
+    private PlayerStore playerStore;
 
     @Override
     public void onEnable() {
         saveDefaultConfig();
+        if (!new java.io.File(getDataFolder(), "prompt.txt").exists()) saveResource("prompt.txt", false);
+        this.playerStore = new PlayerStore(this);
         this.dialogue = new DialogueManager(this);
         this.manager = new VerityManager(this, dialogue);
         this.demonManager = new DemonManager(this, manager);
@@ -54,10 +58,12 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
         this.aiChatManager = new AiChatManager(this, manager);
         this.introManager = new IntroManager(this);
         this.karmaBoard = new KarmaBoard(this, manager);
+        this.flashlightManager = new FlashlightManager(this);
 
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(flashlightManager, this);
 
-        VerityCommand cmd = new VerityCommand(manager, demonManager, boxManager, aiChatManager, introManager);
+        VerityCommand cmd = new VerityCommand(this, manager, demonManager, boxManager, aiChatManager, introManager, flashlightManager);
         register("verity", cmd);
         register("recoververity", new RecoverCommand());
         register("clear_history", new ClearHistoryCommand());
@@ -65,6 +71,16 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
 
         // Тик мира: дней-цикл, окно, трансформация, фонарик (блок света)
         getServer().getScheduler().runTaskTimer(this, this::dayTick, 20L, 20L);
+        // Онлайн-тики (playTicks, ТЗ sec 3): +1 в тик для каждого игрока
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            for (Player p : getServer().getOnlinePlayers()) playerStore.tickPlay(p);
+        }, 1L, 1L);
+        // Синк кармы в стор каждые 5 минут (вместе с автосейвом PlayerStore)
+        getServer().getScheduler().runTaskTimer(this, () -> {
+            for (Player p : getServer().getOnlinePlayers()) {
+                playerStore.get(p.getUniqueId()).karma = manager.karmaOf(p);
+            }
+        }, 6000L, 6000L);
 
         getLogger().info("Verity is watching. Always.");
     }
@@ -82,6 +98,14 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (flashlightManager != null) flashlightManager.clearAll();
+        if (playerStore != null) {
+            // карма всех онлайн-игроков в стор перед финальным сейвом
+            for (Player p : getServer().getOnlinePlayers()) {
+                playerStore.get(p.getUniqueId()).karma = manager != null ? manager.karmaOf(p) : 10;
+            }
+            playerStore.saveAll();
+        }
         if (manager != null) manager.despawnAll();
         if (demonManager != null) demonManager.despawnAll();
         if (boxManager != null) boxManager.despawnAll();
@@ -93,12 +117,31 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
     public BoxManager getBoxManager() { return boxManager; }
     public AiChatManager getAiChatManager() { return aiChatManager; }
     public IntroManager getIntroManager() { return introManager; }
+    public FlashlightManager getFlashlightManager() { return flashlightManager; }
+    public PlayerStore getPlayerStore() { return playerStore; }
 
     /* ---------------- join / quit / chunk ---------------- */
 
     @EventHandler
     public void onJoin(PlayerJoinEvent event) {
         Player player = event.getPlayer();
+        // PlayerStore: загрузка + карма в менеджер + ресурспак
+        PlayerStore.Data d = playerStore.get(player);
+        manager.setKarma(player, d.karma);
+        player.getPersistentDataContainer().set(new org.bukkit.NamespacedKey(this, "verity_day_offset"),
+                org.bukkit.persistence.PersistentDataType.LONG, d.dayOffset);
+        String packUrl = getConfig().getString("resource-pack.url", "");
+        if (packUrl != null && !packUrl.isBlank()) {
+            try {
+                byte[] sha1 = getConfig().getString("resource-pack.sha1", "").getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+                player.setResourcePack(java.util.UUID.nameUUIDFromBytes(packUrl.getBytes(java.nio.charset.StandardCharsets.UTF_8)),
+                        packUrl, sha1,
+                        net.kyori.adventure.text.Component.text("Verity resource pack"),
+                        getConfig().getBoolean("resource-pack.required", false));
+            } catch (Exception ex) {
+                getLogger().warning("Не удалось отправить ресурспак: " + ex.getMessage());
+            }
+        }
         boolean first = !player.hasPlayedBefore();
         if (first) {
             player.getInventory().addItem(new org.bukkit.inventory.ItemStack(Material.TORCH, 1));
@@ -128,9 +171,33 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
 
     @EventHandler
     public void onQuit(PlayerQuitEvent event) {
-        event.getPlayer().resetPlayerTime();
-        event.getPlayer().resetPlayerWeather();
-        manager.despawn(event.getPlayer());
+        Player p = event.getPlayer();
+        flashlightManager.clear(p);
+        // карма в PlayerStore перед выгрузкой
+        playerStore.get(p.getUniqueId()).karma = manager.karmaOf(p);
+        playerStore.get(p.getUniqueId()).dayOffset = p.getPersistentDataContainer().getOrDefault(
+                new org.bukkit.NamespacedKey(this, "verity_day_offset"),
+                org.bukkit.persistence.PersistentDataType.LONG, 0L);
+        playerStore.unload(p.getUniqueId());
+        p.resetPlayerTime();
+        p.resetPlayerWeather();
+        manager.despawn(p);
+    }
+
+    /* ---------------- flashlight toggle ---------------- */
+
+    @EventHandler
+    public void onFlashlightClick(PlayerInteractEvent event) {
+        Player p = event.getPlayer();
+        Action a = event.getAction();
+        if (a != Action.RIGHT_CLICK_AIR && a != Action.RIGHT_CLICK_BLOCK) return;
+        ItemStack inHand = p.getInventory().getItemInMainHand();
+        if (inHand.getType() != org.bukkit.Material.STICK) return;
+        if (flashlightManager.isFlashlight(inHand)) {
+            flashlightManager.toggle(p);
+            p.playSound(p.getLocation(), org.bukkit.Sound.BLOCK_BAMBOO_WOOD_BUTTON_CLICK_ON, 0.6f, 1.2f);
+            event.setCancelled(true);
+        }
     }
 
     @EventHandler
@@ -310,10 +377,13 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
         for (Player p : getServer().getOnlinePlayers()) {
             World w = p.getWorld();
             long fullTime = w.getFullTime();
-            long day = (fullTime / 24000L) + 1;
+            long offset = p.getPersistentDataContainer().getOrDefault(
+                    new org.bukkit.NamespacedKey(this, "verity_day_offset"),
+                    org.bukkit.persistence.PersistentDataType.LONG, 0L);
+            long day = (fullTime / 24000L) + 1 + offset;
             int dayCount = getConfig().getInt("dayCount", 5);
 
-            // День 2 (ТЗ §4/§7): разовая зачистка только в радиусе 64 вокруг владельца,
+            // День 2 (ТЗ sec 4,7): разовая зачистка только в радиусе 64 вокруг владельца,
             // глобальный гейтрул DO_MOB_SPAWNING НЕ трогаем (соседние EliteMobs и др.)
             if (day == 2 && !p.getScoreboardTags().contains("verity_day2_done")) {
                 purgeRadius(p, 64);
@@ -329,8 +399,9 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
                 manager.face(p, FaceKind.EVIL);
             }
 
-            // Трансформация: день 5 или transform_next_day (ИИ)
-            boolean needTransform = day >= dayCount;
+            // Трансформация: день 5, transform_now (админ) или transform_next_day (ИИ)
+            boolean needTransform = day >= dayCount
+                    || p.getScoreboardTags().contains("verity_transform_now");
             boolean aiTransform = p.getScoreboardTags().contains("verity_transform_tomorrow")
                     && day >= Long.parseLong(p.getScoreboardTags().stream().filter(s -> s.startsWith("verity_transform_day_")).findFirst().map(s -> s.replace("verity_transform_day_", "")).orElse("0"));
             if ((needTransform || aiTransform) && manager.hasVerity(p)
@@ -349,19 +420,7 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
                 demonManager.windowScareTick(p);
             }
 
-            // Фонарик: невидимый свет по лучу 25 блоков (приближённо через частицы)
-            if (!p.getInventory().getItemInMainHand().getType().isAir()) {
-                var item = p.getInventory().getItemInMainHand();
-                if (item.getType() == Material.TORCH || item.getType() == Material.SOUL_TORCH || item.getType() == Material.LANTERN || item.getType() == Material.SOUL_LANTERN) {
-                    org.bukkit.Location eye = p.getEyeLocation();
-                    org.bukkit.util.Vector dir = eye.getDirection().normalize();
-                    int dist = getConfig().getInt("flashlight.distance", 25);
-                    for (int i = 1; i <= dist; i++) {
-                        org.bukkit.Location spot = eye.clone().add(dir.clone().multiply(i));
-                        w.spawnParticle(Particle.ELECTRIC_SPARK, spot, 1, 0.3, 0.3, 0.3, 0.0);
-                    }
-                }
-            }
+            // Фонарик: FlashlightManager шлёт LIGHT через sendBlockChange (ТЗ sec 7)
 
             // True Darkness приближённо: ночью — Darkness
             if (getConfig().getBoolean("trueDarkness", true) && !w.isDayTime()) {
@@ -373,7 +432,7 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
     }
 
 
-    /** Зачистка мобов только вокруг владельца (ТЗ §7). Исключения: питомцы, именованные, на поводке, с опытом торговли, рядом с чужими игроками. */
+    /** Зачистка мобов только вокруг владельца (ТЗ sec 7). Исключения: питомцы, именованные, на поводке, с опытом торговли, рядом с чужими игроками. */
     private void purgeRadius(Player owner, double radius) {
         for (Entity e : owner.getWorld().getNearbyEntities(owner.getLocation(), radius, radius, radius)) {
             if (e instanceof Player) continue;
@@ -412,6 +471,7 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
         demonManager.spawnDemon(p, demonLoc, 1);
         manager.setPhase(p, VerityPhase.NOFACE);
         p.getScoreboardTags().add("verity_transformed");
+        p.getScoreboardTags().remove("verity_transform_now");
     }
 
     private void transformNextDay(Player p) {
@@ -460,7 +520,8 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
             Player target = sender instanceof Player pl ? pl : getServer().getPlayerExact(args.length > 1 ? args[1] : "");
             if (target == null) { sender.sendMessage(Component.text("Игрок не найден.", NamedTextColor.RED)); return true; }
             manager.setKarma(target, v);
-            sender.sendMessage(Component.text("Карма " + target.getName() + ": " + v, NamedTextColor.YELLOW));
+            if (playerStore != null) playerStore.get(target.getUniqueId()).karma = manager.karmaOf(target);
+            sender.sendMessage(Component.text("Карма " + target.getName() + ": " + manager.karmaOf(target), NamedTextColor.YELLOW));
             return true;
         }
     }

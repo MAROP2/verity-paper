@@ -50,6 +50,9 @@ public final class VerityManager {
     private final java.util.Map<UUID, Long> sorryCounts = new ConcurrentHashMap<>();
     private final java.util.Map<UUID, Long> idleSayAt = new ConcurrentHashMap<>();
     private final java.util.Map<UUID, Long> aloneLastWarn = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean> following = new ConcurrentHashMap<>();
+    private final Map<UUID, Boolean> monstrous = new ConcurrentHashMap<>();
+    private final Map<UUID, FaceKind> manualFace = new ConcurrentHashMap<>();
 
     private final double scale;
     private final double bobAmplitude;
@@ -178,6 +181,9 @@ public final class VerityManager {
     public void despawn(Player target) {
         VerityInstance inst = instances.remove(target.getUniqueId());
         if (inst != null) inst.removeEntities();
+        following.remove(target.getUniqueId());
+        monstrous.remove(target.getUniqueId());
+        manualFace.remove(target.getUniqueId());
     }
 
     public void despawnAll() {
@@ -229,12 +235,48 @@ public final class VerityManager {
 
     public void onSorry(Player p) {
         long c = sorryCounts.getOrDefault(p.getUniqueId(), 0L) + 1;
-        sorryCounts.put(p.getUniqueId(), c);
-        if (c >= 3) sorryCounts.put(p.getUniqueId(), 0L);
+        sorryCounts.put(p.getUniqueId(), Math.min(c, 3));
     }
 
     public boolean sorryOk(Player p) {
         return sorryCounts.getOrDefault(p.getUniqueId(), 0L) >= 3;
+    }
+
+    public void resetSorry(Player p) { sorryCounts.remove(p.getUniqueId()); }
+    public void setFollowing(Player p, boolean en) { following.put(p.getUniqueId(), en); }
+    public boolean isFollowing(Player p) { return following.getOrDefault(p.getUniqueId(), false); }
+    public void setMonstrous(Player p, boolean m) { monstrous.put(p.getUniqueId(), m); }
+    public boolean isMonstrous(Player p) { return monstrous.getOrDefault(p.getUniqueId(), false); }
+    public FaceKind faceByName(String name) {
+        if (name == null) return null;
+        String n = name.trim().toLowerCase().replace('-', '_');
+        return switch (n) {
+            case "happy" -> FaceKind.HAPPY;
+            case "neutral" -> FaceKind.NEUTRAL;
+            case "hurt" -> FaceKind.HURT;
+            case "sleepy", "happy_sleep", "sleep" -> FaceKind.HAPPY_SLEEP;
+            case "serious" -> FaceKind.SERIOUS_1;
+            case "crazy" -> FaceKind.CRAZY;
+            case "evil" -> FaceKind.EVIL;
+            case "smiling_evil" -> FaceKind.SMILING_EVIL;
+            case "blank", "noface" -> FaceKind.NOFACE;
+            default -> null;
+        };
+    }
+    public void faceByName(Player p, String name) {
+        FaceKind fk = faceByName(name);
+        if (fk != null) { manualFace.put(p.getUniqueId(), fk); face(p, fk); }
+    }
+    public void returnToInventory(Player p) {
+        VerityInstance inst = instances.get(p.getUniqueId());
+        if (inst == null) throw new IllegalStateException("no orb");
+        despawn(p);
+        // предмет-шар в инвентарь (snowball fallback без ресуспака)
+        try {
+            ItemStack it = new ItemStack(Material.SNOWBALL, 1);
+            java.util.Map<Integer, ItemStack> rest = p.getInventory().addItem(it);
+            if (!rest.isEmpty()) { for (var e : rest.values()) p.getWorld().dropItemNaturally(p.getLocation(), e); }
+        } catch (Exception ignored) {}
     }
 
     public void face(Player p, FaceKind kind) {
@@ -319,7 +361,8 @@ public final class VerityManager {
         Location sphereLoc0 = inst.sphere().getLocation();
         // --- Karma: лицо по карме (серьёзные 13+/20) ---
         int k = karmaOf(target);
-        FaceKind fk = FaceKind.forKarma(k);
+        FaceKind fk = manualFace.getOrDefault(target.getUniqueId(), FaceKind.forKarma(k));
+        if (monstrous.getOrDefault(target.getUniqueId(), false)) fk = FaceKind.NOFACE;
         if (inst.phase() != VerityPhase.NOFACE && inst.phase() != VerityPhase.JUMPSCARE) {
             try { inst.face().text(Component.text(fk.text(), net.kyori.adventure.text.format.TextColor.color(0x000000)).decoration(TextDecoration.BOLD, true)); } catch (Exception ignored) {}
         }
@@ -355,7 +398,7 @@ public final class VerityManager {
         if (toVerity.lengthSquared() < 1.0e-4) {
             toVerity = new Vector(1, 0, 0);
         }
-        Vector desired = toVerity.normalize().multiply(ps.distance());
+        Vector desired = toVerity.normalize().multiply(following.getOrDefault(target.getUniqueId(), false) ? 1.2 : ps.distance());
         double bob = Math.sin(tick * bobSpeed) * bobAmplitude;
         Location newLoc = targetLoc.clone().add(desired)
                 .add(0, hoverAbove + bob, 0);

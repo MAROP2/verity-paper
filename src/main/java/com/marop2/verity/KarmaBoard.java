@@ -11,7 +11,7 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * Карма 0-20 — BossBar только владельцу (ТЗ §3: цвет 0-6 красный, 7-13 жёлтый, 14-20 зелёный).
+ * Карма 0-20 — BossBar только владельцу (ТЗ sec 3: цвет 0-6 красный, 7-13 жёлтый, 14-20 зелёный).
  * Скорборд убран: конфликт с другими плагинами и не соответствует ТЗ.
  */
 public final class KarmaBoard {

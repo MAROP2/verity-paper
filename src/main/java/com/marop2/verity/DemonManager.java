@@ -125,6 +125,48 @@ public final class DemonManager {
         demons.clear();
     }
 
+    public boolean isDemonActive(Player target) {
+        if (target == null) return false;
+        for (DemonState s : demons.values()) {
+            if (s.targetId.equals(target.getUniqueId())) return true;
+        }
+        return false;
+    }
+
+    public void defeatDemon(Player target) {
+        if (target == null) return;
+        List<Zombie> toRemove = new ArrayList<>();
+        for (Zombie z : allDemons()) {
+            DemonState s = demons.get(z.getUniqueId());
+            if (s != null && s.targetId.equals(target.getUniqueId())) toRemove.add(z);
+        }
+        for (Zombie z : toRemove) {
+            try { z.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, z.getLocation().add(0, 1, 0), 30, 0.5, 0.5, 0.5, 0.1); } catch (Exception ignored) {}
+            z.remove();
+            demons.remove(z.getUniqueId());
+        }
+        target.resetPlayerTime();
+        try { target.resetPlayerWeather(); } catch (Exception ignored) {}
+        target.getScoreboardTags().remove("verity_transformed");
+        target.getScoreboardTags().remove("verity_transformDone");
+        manager.setKarma(target, plugin.getConfig().getInt("karma.good-ending", 20));
+        // шар добрый
+        try { manager.setMonstrous(target, false); } catch (Exception ignored) {}
+        try { manager.setPhase(target, VerityPhase.CALM); } catch (Exception ignored) {}
+        try { manager.face(target, FaceKind.HAPPY); } catch (Exception ignored) {}
+        try { manager.speakTo(target, plugin.getConfig().getString("replies.good-ending", "The darkness... it's gone. Thank you.")); } catch (Exception ignored) {}
+        try { target.playSound(target.getLocation(), Sound.ENTITY_WITHER_SPAWN, 0.5f, 1.4f); } catch (Exception ignored) {}
+        try { target.playSound(target.getLocation(), org.bukkit.Sound.ITEM_TOTEM_USE, 1f, 1f); } catch (Exception ignored) {}
+    }
+
+    public void despawnFor(Player target) {
+        if (target == null) return;
+        for (Zombie z : new ArrayList<>(allDemons())) {
+            DemonState s = demons.get(z.getUniqueId());
+            if (s != null && s.targetId.equals(target.getUniqueId())) { z.remove(); demons.remove(z.getUniqueId()); }
+        }
+    }
+
     private void applyAttributes(Zombie z) {
         setAttr(z, "generic.max_health", plugin.getConfig().getDouble("demon.health", 400.0));
         z.setHealth(Math.min(z.getHealth(), 400.0));
@@ -510,7 +552,11 @@ public final class DemonManager {
         if (player.getScoreboardTags().contains(TAG_WINDOW_DONE)) return;
         int dayCount = plugin.getConfig().getInt("dayCount", 5);
         long dayTime = player.getWorld().getFullTime();
-        if (dayTime < 120_000L) return;
+        long day = dayTime / 24000L + 1;
+        if (day < dayCount) return;
+        if (player.getScoreboardTags().contains("verity_transformed")) return;
+        if (player.getGameMode() == org.bukkit.GameMode.CREATIVE || player.getGameMode() == org.bukkit.GameMode.SPECTATOR) return;
+        if (player.getWorld().getDifficulty() == org.bukkit.Difficulty.PEACEFUL) return;
         // Один раз в 5с проверка через modulo — упрощённо: шанс
         if (player.getWorld().getFullTime() % 100 != 0) return;
         Location pl = player.getLocation();
@@ -532,7 +578,7 @@ public final class DemonManager {
         demonLoc.setY(worldSurfaceY(demonLoc));
         Zombie z = spawnDemon(player, demonLoc, huntPhase);
         if (z == null) return;
-        // ТЗ §1/§6: только владельцу — персональная полночь, мир/гейтрул не трогаем
+        // ТЗ sec 1,6: только владельцу — персональная полночь, мир/гейтрул не трогаем
         player.setPlayerTime(18000, false);
         if (!player.getScoreboardTags().contains("verity_transformed")) {
             player.getScoreboardTags().add("verity_transformed");
@@ -540,6 +586,9 @@ public final class DemonManager {
         }
         player.getWorld().playSound(demonLoc, Sound.ENTITY_ENDERMAN_TELEPORT, 1f, 1f);
         player.addScoreboardTag(TAG_WINDOW_DONE);
+        try { manager.setPhase(player, VerityPhase.NOFACE); } catch (Exception ignored) {}
+        try { manager.setMonstrous(player, true); } catch (Exception ignored) {}
+        try { manager.face(player, FaceKind.NOFACE); } catch (Exception ignored) {}
         manager.speakTo(player, "За окном кто-то стоит. Не смотри долго.");
     }
 
@@ -574,9 +623,19 @@ public final class DemonManager {
         if (!(ev.getEntity() instanceof Zombie z) || !isDemon(z)) return;
         // Игрок его убил → шар говорит "The darkness... it's gone"
         // Ищем последнего атакующего — упрощённо: всем игрокам рядом
+        demons.remove(z.getUniqueId());
         for (Player p : z.getWorld().getPlayers()) {
             if (p.getLocation().distance(z.getLocation()) < 64 && manager.hasVerity(p)) {
+                try { p.resetPlayerTime(); } catch (Exception ignored) {}
+                try { p.resetPlayerWeather(); } catch (Exception ignored) {}
+                try { p.getWorld().spawnParticle(Particle.TOTEM_OF_UNDYING, z.getLocation().add(0, 1, 0), 100, 0.5, 0.5, 0.5, 0.1); } catch (Exception ignored) {}
+                try { p.playSound(p.getLocation(), org.bukkit.Sound.ITEM_TOTEM_USE, 1f, 1f); } catch (Exception ignored) {}
+                try { manager.setMonstrous(p, false); } catch (Exception ignored) {}
+                try { manager.setPhase(p, VerityPhase.CALM); } catch (Exception ignored) {}
+                try { manager.face(p, FaceKind.HAPPY); } catch (Exception ignored) {}
                 manager.setKarma(p, plugin.getConfig().getInt("karma.good-ending", 20));
+                p.getScoreboardTags().remove("verity_transformed");
+                p.getScoreboardTags().remove("verity_transformDone");
                 manager.speakTo(p, plugin.getConfig().getString("replies.good-ending", "The darkness... it's gone. Thank you."));
             }
         }

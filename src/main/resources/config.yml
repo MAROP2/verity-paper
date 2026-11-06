@@ -1,4 +1,5 @@
-# Verity configuration
+language: ru                     # ru | en → messages_<language>.yml
+companion-name: Verity
 # dayCount: через сколько дней начинается демон-фаза (оригинал: 5)
 dayCount: 5
 # canCrash: смерть от демона = кик с сервера
@@ -161,3 +162,9 @@ auto-spawn:
   min-delay-seconds: 30
   max-delay-seconds: 120
   max-distance: 10
+
+resource-pack:
+  enabled: false
+  url: ""                        # прямая ссылка на zip; пусто = не слать
+  sha1: ""
+  required: false

@@ -1,0 +1,46 @@
+# Verity messages (ru)
+speech: "<gray><name></gray> <white><text></white>"
+lines:
+  greeting: ["Привет! Я <name>. Я останусь с тобой. Навсегда."]
+  face-blank: "<dark_gray>У <name> исчезло лицо... Посмотри на неё, чтобы успокоить."
+  calmed: "<gray>...хорошо. Я здесь."
+  darkness-gone: "Тьма... она ушла. Спасибо."
+  cant-sleep: "<red>Сейчас нельзя спать. <name> рядом."
+  death-message: "<dark_red><player> был забран <name>"
+  kicked: "<dark_red><bold>Farewell, <player>"
+  run-title: "<dark_red><bold>RUN"
+  scream: "AAAAAAAAHHH"
+  ouch: ["Ай"]
+  burns: ["ГОРИТ", "ВЫТАЩИ МЕНЯ ОТСЮДА"]
+  do-not: "НЕ ДЕЛАЙ ТАК!"
+  exploded: "Ayo chat why u let me explode"
+  chest: "Меня не запереть, lil bro."
+  lonely: "Я одна... куда ты ушёл?"
+  cant-pick-talking: "<gray>Подожди, <name> говорит."
+  cant-pick-monstrous: "<dark_gray>Она не даст."
+faces:
+  happy: "◕‿◕"
+  neutral: "•_•"
+  hurt: ">﹏<"
+  sleepy: "-‿- z"
+  serious: "ಠ_ಠ"
+  crazy: "◉д◉"
+  evil: "◣_◢"
+  smiling-evil: "◣‿◢"
+  blank: " "
+script:
+  friendly:
+    idle: ["Хочешь поискать алмазы?", "Тут красиво, да?"]
+    reply: ["Хи-хи, ладно!", "Да, я слышу тебя."]
+  unsettling:
+    idle: ["Ты слышишь это?", "Здесь кто-то был до нас."]
+    reply: ["Не смотри так долго."]
+  glitch:
+    idle: ["Something is coming in <days> days.", "Мне холодно."]
+    reply: ["Something.", "You could have."]
+  hostile:
+    idle: ["Оно уже близко.", "Не спи. Просто... не спи."]
+    reply: ["Ты тоже это чувствуешь?"]
+  monstrous:
+    idle: ["..."]
+    reply: ["Die", "Run", "No"]
