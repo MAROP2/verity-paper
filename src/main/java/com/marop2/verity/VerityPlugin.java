@@ -270,9 +270,10 @@ public final class VerityPlugin extends JavaPlugin implements Listener {
     @EventHandler
     public void onInteractEntity(PlayerInteractEntityEvent event) {
         Player p = event.getPlayer();
-        if (boxManager.hasBox(p)) {
-            // ПКМ по коробке как по сущности — тоже открыть
-            if (boxManager.tryOpen(p)) return;
+        // ПКМ по хитбоксу коробки — открыть
+        if (boxManager.isBoxEntity(p, event.getRightClicked())) {
+            boxManager.tryOpen(p);
+            return;
         }
         // Запереть в сундуке: вылезает
         if (manager.hasVerity(p) && event.getRightClicked() != null) {
